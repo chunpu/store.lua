@@ -29,11 +29,20 @@ store.get = function(key)
 	return decode(val)
 end
 
-store.set = function(key, val)
+store.set = function(key, val, expireSeconds)
 	-- always overwrite if exist
 	val = encode(val)
-	cache:set(key, val)
+	if expireSeconds then
+		cache:set(key, val, expireSeconds)
+	else
+		cache:set(key, val)
+	end
 	return val -- store.js return val, not chain
+end
+
+store.incr = function(key, val)
+	local ret = cache:incr(key, val) -- return ret, err
+	return ret -- always return one result
 end
 
 store.remove = function(key)
