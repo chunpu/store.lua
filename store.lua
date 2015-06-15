@@ -3,8 +3,6 @@
 local _ = require 'shim'
 local json = require 'cjson'
 
-local store = {}
-
 -- https://github.com/openresty/lua-nginx-module/#lua_shared_dict
 -- https://github.com/openresty/lua-nginx-module/#ngxshareddict
 -- nginx -s reload won't clear the shared memory, start will
@@ -24,45 +22,63 @@ local function encode(val)
 	return tostring(val)
 end
 
-store.get = function(key)
-	local val = cache:get(key)
-	return decode(val)
-end
+local function runInContext(ctx)
+	ctx = ctx or {}
+	local ns = ctx.namespace or ''
 
-store.set = function(key, val, expireSeconds)
-	-- always overwrite if exist
-	val = encode(val)
-	if expireSeconds then
-		cache:set(key, val, expireSeconds)
-	else
-		cache:set(key, val)
+	local store = {}
+
+	store.runInContext = runInContext
+
+	store.get = function(key)
+		key = ns .. key
+		local val = cache:get(key)
+		return decode(val)
 	end
-	return val -- store.js return val, not chain
+
+	store.set = function(key, val, expireSeconds)
+		-- always overwrite if exist
+		val = encode(val)
+		key = ns .. key
+		if expireSeconds then
+			cache:set(key, val, expireSeconds)
+		else
+			cache:set(key, val)
+		end
+		return val -- store.js return val, not chain
+	end
+
+	store.incr = function(key, val)
+		key = ns .. key
+		local ret = cache:incr(key, val) -- return ret, err
+		return ret -- always return one result
+	end
+
+	store.remove = function(key)
+		key = ns .. key
+		cache:delete(key)
+	end
+
+	store.clear = function()
+		cache:flush_all()
+	end
+
+	store.keys = function(max)
+		return cache:get_keys(max or 1024) -- default 1024, or crash
+	end
+
+	store.getAll = function()
+		local keys = store.keys()
+		return _.reduce(keys, function(ret, key)
+			ret[key] = store.get(key)
+			return ret
+		end, {})
+	end
+
+	_.extend(store, ctx)
+
+	return store
 end
 
-store.incr = function(key, val)
-	local ret = cache:incr(key, val) -- return ret, err
-	return ret -- always return one result
-end
 
-store.remove = function(key)
-	cache:delete(key)
-end
-
-store.clear = function()
-	cache:flush_all()
-end
-
-store.keys = function(max)
-	return cache:get_keys(max or 1024) -- default 1024, or crash
-end
-
-store.getAll = function()
-	local keys = store.keys()
-	return _.reduce(keys, function(ret, key)
-		ret[key] = store.get(key)
-		return ret
-	end, {})
-end
-
-return store
+return runInContext()

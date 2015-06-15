@@ -26,12 +26,21 @@ store.get('foo')
 Api
 ---
 
-- `store.set(key, value[, expire])` value can be table, json, num, string ...
+- `store.set(key, value, [expire])` value can be table, json, num, string ...
 - `store.get(key)`
 - `store.remove(key)`
 - `store.clear()` clear all
 - `store.keys()` get all keys in store
 - `store.getAll()` return a table, get all in store
+- `store.runInContext([context])` create a new store with given context
+
+```lua
+local store = require 'store'
+
+store = store.runInContext({
+	namespace = 'myapp'
+})
+```
 
 TODO
 ---
